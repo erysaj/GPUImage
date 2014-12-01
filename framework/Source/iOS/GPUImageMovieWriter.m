@@ -302,53 +302,44 @@ NSString *const kGPUImageColorSwizzlingFragmentShaderString = SHADER_STRING
 
 - (void)finishRecording;
 {
-    [self finishRecordingWithCompletionHandler:NULL logger:NULL];
+    [self finishRecordingWithCompletionHandler:NULL];
 }
 
-- (void)finishRecordingWithCompletionHandler:(void (^)(void))handler logger:(void (^)(NSString *))logger
+- (void)finishRecordingWithCompletionHandler:(void (^)(void))handler;
 {
-    if (!logger) {
-        logger = ^(NSString *msg) {};
-    }
     runSynchronouslyOnVideoProcessingQueue(^{
         
         dispatch_sync(movieWritingQueue, ^{
             isRecording = NO;
-            logger(@"finish movie [0]");
+            
             if (assetWriter.status == AVAssetWriterStatusCompleted || assetWriter.status == AVAssetWriterStatusCancelled || assetWriter.status == AVAssetWriterStatusUnknown)
             {
-                logger(@"finish movie [1]");
                 if (handler)
                     runAsynchronouslyOnVideoProcessingQueue(handler);
                 return;
             }
             if( assetWriter.status == AVAssetWriterStatusWriting && ! videoEncodingIsFinished )
             {
-                logger(@"finish movie [2]");
                 videoEncodingIsFinished = YES;
                 [assetWriterVideoInput markAsFinished];
             }
             if( assetWriter.status == AVAssetWriterStatusWriting && ! audioEncodingIsFinished )
             {
-                logger(@"finish movie [3]");
                 audioEncodingIsFinished = YES;
                 [assetWriterAudioInput markAsFinished];
             }
 #if (!defined(__IPHONE_6_0) || (__IPHONE_OS_VERSION_MAX_ALLOWED < __IPHONE_6_0))
             // Not iOS 6 SDK
-            logger(@"finish movie [4]");
             [assetWriter finishWriting];
             if (handler)
                 runAsynchronouslyOnVideoProcessingQueue(handler);
 #else
             // iOS 6 SDK
             if ([assetWriter respondsToSelector:@selector(finishWritingWithCompletionHandler:)]) {
-                logger(@"finish movie [5]");
                 // Running iOS 6
                 [assetWriter finishWritingWithCompletionHandler:(handler ?: ^{ })];
             }
             else {
-                logger(@"finish movie [6]");
                 // Not running iOS 6
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -380,14 +371,6 @@ NSString *const kGPUImageColorSwizzlingFragmentShaderString = SHADER_STRING
             dispatch_sync(movieWritingQueue, ^{
                 if ((audioInputReadyCallback == NULL) && (assetWriter.status != AVAssetWriterStatusWriting))
                 {
-                    if (assetWriter.status == AVAssetWriterStatusFailed)
-                    {
-                        [[NSAssertionHandler currentHandler] handleFailureInMethod:_cmd
-                                                                            object:self
-                                                                              file:[NSString stringWithUTF8String:__FILE__]
-                                                                        lineNumber:__LINE__
-                                                                       description:@"Asset writer failed: %@", assetWriter.error.localizedDescription];
-                    }
                     [assetWriter startWriting];
                 }
                 [assetWriter startSessionAtSourceTime:currentSampleTime];
